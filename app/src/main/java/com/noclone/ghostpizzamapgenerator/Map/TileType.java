@@ -5,6 +5,8 @@ public enum TileType {
     EMPTY,
     FENCE,
     TELEPORTER,
-    GHOST
-
+    GHOST,
+    PLAYER,
+    PIZZA,
+    HOUSE
 }
