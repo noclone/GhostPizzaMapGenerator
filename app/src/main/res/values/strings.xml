@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">GhostPizzaMapGenerator</string>
+    <string name="generate">GENERATE</string>
+    <string name="two_players">2 players</string>
+    <string name="three_players">3 players</string>
+    <string name="four_players">4 players</string>
 </resources>

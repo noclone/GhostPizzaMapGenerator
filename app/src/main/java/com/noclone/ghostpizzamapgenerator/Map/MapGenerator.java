@@ -1,6 +1,10 @@
 package com.noclone.ghostpizzamapgenerator.Map;
 
-import com.noclone.ghostpizzamapgenerator.Map.TileType;
+import static com.noclone.ghostpizzamapgenerator.Map.PlayerStartPositions.fourPlayerStartPositions;
+import static com.noclone.ghostpizzamapgenerator.Map.PlayerStartPositions.threePlayerStartPositions;
+import static com.noclone.ghostpizzamapgenerator.Map.PlayerStartPositions.twoPlayerStartPositions;
+
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -8,17 +12,15 @@ import java.util.List;
 import java.util.Random;
 
 public class MapGenerator {
-    public static Tile[][] generateMap() {
+
+    public static Tile[][] generateMap(int nbPlayers) {
         int rows = 7;
         int cols = 7;
         Tile[][] gameMap = initializeMap(rows, cols);
 
-        List<int[]> players = new ArrayList<>();
-        players.add(new int[]{1, 1});
-        players.add(new int[]{5, 5});
-        players.add(new int[]{1, 5});
-        players.add(new int[]{5, 1});
+        List<int[]> players = getPlayerStartPositions(nbPlayers);
 
+        assert players != null;
         placePlayers(gameMap, players);
         placeBaseBlocks(gameMap, players);
         placePizzaAndHouse(gameMap, players);
@@ -28,6 +30,17 @@ public class MapGenerator {
         clearBlockedTiles(gameMap);
 
         return gameMap;
+    }
+
+    private static List<int[]> getPlayerStartPositions(int nbPlayers) {
+        if (nbPlayers == 2) {
+            return twoPlayerStartPositions.get(new Random().nextInt(twoPlayerStartPositions.size()));
+        } else if (nbPlayers == 3) {
+            return threePlayerStartPositions.get(new Random().nextInt(threePlayerStartPositions.size()));
+        } else if (nbPlayers == 4) {
+            return fourPlayerStartPositions.get(new Random().nextInt(fourPlayerStartPositions.size()));
+        }
+        return null;
     }
 
     private static Tile[][] initializeMap(int rows, int cols) {
@@ -40,26 +53,58 @@ public class MapGenerator {
         return gameMap;
     }
 
-    private static void printMap(String[][] gameMap) {
-        for (String[] row : gameMap) {
-            System.out.println(String.join(" ", row));
+    public static void printMap(Tile[][] gameMap) {
+        String map = "";
+        for (Tile[] row : gameMap) {
+            for (Tile tile : row) {
+                String symbol = "";
+                switch (tile.getType()){
+                    case EMPTY:
+                        symbol = "--";
+                        break;
+                    case BLOCKED:
+                        symbol = "XX";
+                        break;
+                    case PLAYER:
+                        symbol = "J" + tile.getValue();
+                        break;
+                    case PIZZA:
+                        symbol = "P" + tile.getValue();
+                        break;
+                    case HOUSE:
+                        symbol = "H" + tile.getValue();
+                        break;
+                    case FENCE:
+                        symbol = "FF";
+                        break;
+                    case TELEPORTER:
+                        symbol = "TT";
+                        break;
+                    case GHOST:
+                        symbol = "GG";
+                        break;
+                }
+                map += symbol + " ";
+            }
+            map += "\n";
         }
+        Log.d("GAME_MAP", map);
     }
 
-    private static void placePlayers(String[][] gameMap, List<int[]> players) {
+    private static void placePlayers(Tile[][] gameMap, List<int[]> players) {
         for (int i = 0; i < players.size(); i++) {
             int[] position = players.get(i);
-            gameMap[position[0]][position[1]] = "J" + (i + 1);
+            gameMap[position[0]][position[1]] = new Tile(TileType.PLAYER, i+1);
         }
     }
 
-    private static void blockTile(String[][] gameMap, int i, int j) {
+    private static void blockTile(Tile[][] gameMap, int i, int j) {
         if (i >= 0 && i < gameMap.length && j >= 0 && j < gameMap[0].length) {
-            gameMap[i][j] = BLOCK;
+            gameMap[i][j] = new Tile(TileType.BLOCKED);
         }
     }
 
-    private static void placeBaseBlocks(String[][] gameMap, List<int[]> players) {
+    private static void placeBaseBlocks(Tile[][] gameMap, List<int[]> players) {
         for (int[] position : players) {
             blockTile(gameMap, position[0] - 1, position[1]);
             blockTile(gameMap, position[0] + 1, position[1]);
@@ -79,12 +124,12 @@ public class MapGenerator {
         return true;
     }
 
-    private static void clearPizzasAndHouses(String[][] gameMap, List<int[]> pizzaPositions, List<int[]> housePositions) {
+    private static void clearPizzasAndHouses(Tile[][] gameMap, List<int[]> pizzaPositions, List<int[]> housePositions) {
         for (int[] pizzaPosition : pizzaPositions) {
-            gameMap[pizzaPosition[0]][pizzaPosition[1]] = EMPTY;
+            gameMap[pizzaPosition[0]][pizzaPosition[1]] = new Tile(TileType.EMPTY);
         }
         for (int[] housePosition : housePositions) {
-            gameMap[housePosition[0]][housePosition[1]] = EMPTY;
+            gameMap[housePosition[0]][housePosition[1]] = new Tile(TileType.EMPTY);
         }
     }
 
@@ -97,21 +142,20 @@ public class MapGenerator {
         return false;
     }
 
-    private static void placePizzaAndHouse(String[][] gameMap, List<int[]> players) {
+    private static void placePizzaAndHouse(Tile[][] gameMap, List<int[]> players) {
         List<int[]> pizzaPositions = new ArrayList<>();
         List<int[]> housePositions = new ArrayList<>();
 
-        int playerPizzaMinDistance = new Random().nextInt(3) + 3;
-        int playerPizzaDistance = playerPizzaMinDistance;
-        int pizzaHouseDistance = new Random().nextInt(3) + 3;
+        int playerPizzaMinDistance = 3 + new Random().nextInt(5 - players.size());
+        int pizzaHouseDistance = 3 + new Random().nextInt(3);
 
         for (int i = 0; i < players.size(); i++) {
             List<int[]> possiblePizzaPositions = new ArrayList<>();
             for (int row = 0; row < gameMap.length; row++) {
                 for (int col = 0; col < gameMap[0].length; col++) {
-                    if (gameMap[row][col].equals(EMPTY) && checkDistanceFromPlayers(players, row, col, playerPizzaMinDistance) &&
-                            ((playerPizzaDistance == -1 || Math.abs(row - players.get(i)[0]) + Math.abs(col - players.get(i)[1]) == playerPizzaDistance) ||
-                                    pizzaClose(players.get(i), pizzaPositions, playerPizzaDistance))) {
+                    if (gameMap[row][col].getType() == TileType.EMPTY && checkDistanceFromPlayers(players, row, col, playerPizzaMinDistance) &&
+                            ((Math.abs(row - players.get(i)[0]) + Math.abs(col - players.get(i)[1]) == playerPizzaMinDistance) ||
+                                    pizzaClose(players.get(i), pizzaPositions, playerPizzaMinDistance))) {
                         possiblePizzaPositions.add(new int[]{row, col});
                     }
                 }
@@ -123,7 +167,7 @@ public class MapGenerator {
             List<int[]> possibleHousePositions = new ArrayList<>();
             for (int row = 0; row < gameMap.length; row++) {
                 for (int col = 0; col < gameMap[0].length; col++) {
-                    if (gameMap[row][col].equals(EMPTY) && Math.abs(row - pizzaPosition[0]) + Math.abs(col - pizzaPosition[1]) == pizzaHouseDistance) {
+                    if (gameMap[row][col].getType() == TileType.EMPTY && Math.abs(row - pizzaPosition[0]) + Math.abs(col - pizzaPosition[1]) == pizzaHouseDistance) {
                         possibleHousePositions.add(new int[]{row, col});
                     }
                 }
@@ -139,22 +183,22 @@ public class MapGenerator {
             int[] housePosition = possibleHousePositions.get(0);
             housePositions.add(housePosition);
 
-            gameMap[pizzaPosition[0]][pizzaPosition[1]] = "P" + (i + 1);
-            gameMap[housePosition[0]][housePosition[1]] = "H" + (i + 1);
+            gameMap[pizzaPosition[0]][pizzaPosition[1]] = new Tile(TileType.PIZZA, i + 1);
+            gameMap[housePosition[0]][housePosition[1]] = new Tile(TileType.HOUSE, i + 1);
         }
     }
 
-    private static void placeFences(String[][] gameMap) {
+    private static void placeFences(Tile[][] gameMap) {
         int i = 4;
         Random random = new Random();
         while (i != 0) {
             int row = random.nextInt(gameMap.length);
             int col = random.nextInt(gameMap[0].length);
-            if (gameMap[row][col].equals(EMPTY)) {
-                gameMap[row][col] = FENCE;
+            if (gameMap[row][col].getType() == TileType.EMPTY) {
+                gameMap[row][col] = new Tile(TileType.FENCE);
                 i -= 1;
                 if (!isFenceValid(gameMap, row, col)) {
-                    gameMap[row][col] = EMPTY;
+                    gameMap[row][col] = new Tile(TileType.EMPTY);
                     i += 1;
                 }
             }
@@ -162,18 +206,23 @@ public class MapGenerator {
     }
 
     private static boolean isCorner(int row, int col, int i, int j) {
-        return List.of(new int[]{i - 1, j - 1}, new int[]{i - 1, j + 1}, new int[]{i + 1, j - 1}, new int[]{i + 1, j + 1})
-                .contains(new int[]{row, col});
+        List<int[]> corners = new ArrayList<int[]>(){{
+            add(new int[]{i - 1, j - 1});
+            add(new int[]{i - 1, j + 1});
+            add(new int[]{i + 1, j - 1});
+            add(new int[]{i + 1, j + 1});
+        }};
+        return corners.contains(new int[]{row, col});
     }
 
-    private static int findFenceWayToBorder(String[][] gameMap, int i, int j, boolean[][] visited, boolean detach) {
+    private static int findFenceWayToBorder(Tile[][] gameMap, int i, int j, boolean[][] visited, boolean detach) {
         visited[i][j] = true;
         int borderFences = 0;
         int[][] directions = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
         for (int[] direction : directions) {
             int row = i + direction[0];
             int col = j + direction[1];
-            if (row >= 0 && row < gameMap.length && col >= 0 && col < gameMap[0].length && gameMap[row][col].equals(FENCE) && !visited[row][col]) {
+            if (row >= 0 && row < gameMap.length && col >= 0 && col < gameMap[0].length && gameMap[row][col].getType() == TileType.FENCE && !visited[row][col]) {
                 if (row == 0 || row == gameMap.length - 1 || col == 0 || col == gameMap[0].length - 1) {
                     if (detach || isCorner(row, col, i, j)) {
                         borderFences += 1;
@@ -187,7 +236,7 @@ public class MapGenerator {
         return borderFences;
     }
 
-    private static boolean isFenceValid(String[][] gameMap, int i, int j) {
+    private static boolean isFenceValid(Tile[][] gameMap, int i, int j) {
         boolean[][] visited = new boolean[gameMap.length][gameMap[0].length];
         if (i == 0 || i == gameMap.length - 1 || j == 0 || j == gameMap[0].length - 1) {
             int borderFences = findFenceWayToBorder(gameMap, i, j, visited, false);
@@ -197,39 +246,39 @@ public class MapGenerator {
         return borderFences < 2;
     }
 
-    private static void placeTeleporters(String[][] gameMap) {
+    private static void placeTeleporters(Tile[][] gameMap) {
         Random random = new Random();
-        for (int count = 0; count < 3; count++) {
+        for (int count = 1; count <= 3; count++) {
             while (true) {
                 int row = random.nextInt(gameMap.length);
                 int col = random.nextInt(gameMap[0].length);
-                if (gameMap[row][col].equals(EMPTY)) {
-                    gameMap[row][col] = TELEPORTER;
+                if (gameMap[row][col].getType() == TileType.EMPTY) {
+                    gameMap[row][col] = new Tile(TileType.TELEPORTER, count);
                     break;
                 }
             }
         }
     }
 
-    private static void placeGhosts(String[][] gameMap) {
+    private static void placeGhosts(Tile[][] gameMap) {
         Random random = new Random();
         for (int count = 0; count < 6; count++) {
             while (true) {
                 int row = random.nextInt(gameMap.length);
                 int col = random.nextInt(gameMap[0].length);
-                if (gameMap[row][col].equals(EMPTY)) {
-                    gameMap[row][col] = GHOST;
+                if (gameMap[row][col].getType() == TileType.EMPTY) {
+                    gameMap[row][col] = new Tile(TileType.GHOST);
                     break;
                 }
             }
         }
     }
 
-    private static void clearBlockedTiles(String[][] gameMap) {
+    private static void clearBlockedTiles(Tile[][] gameMap) {
         for (int i = 0; i < gameMap.length; i++) {
             for (int j = 0; j < gameMap[0].length; j++) {
-                if (gameMap[i][j].equals(BLOCK)) {
-                    gameMap[i][j] = EMPTY;
+                if (gameMap[i][j].getType() == TileType.BLOCKED) {
+                    gameMap[i][j] = new Tile(TileType.EMPTY);
                 }
             }
         }
